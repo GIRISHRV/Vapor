@@ -276,7 +276,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 0),
                 const ListTile(
-                  title: Text('Vapor v1.0.4'),
+                  title: Text('Vapor v1.0.5'),
                   subtitle: Text(
                     'Zero-Trust Amnesiac P2P File Transfer Engine\nNo accounts. No history. No trace.',
                   ),
