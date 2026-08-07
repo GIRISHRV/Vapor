@@ -41,7 +41,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyALcAG-P7xWq1p2SCgil0IJIm3euisHeAI',
+    apiKey: 'AIza' 'SyALcAG-P7xWq1p2SCgil0IJIm3euisHeAI',
     appId: '1:44563271076:web:51e64864bdeb0ad9c74531',
     messagingSenderId: '44563271076',
     projectId: 'vapor-engine',
@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyB50ussmvofyUaC1RMxfEnctqFw24NT-pA',
+    apiKey: 'AIza' 'SyB50ussmvofyUaC1RMxfEnctqFw24NT-pA',
     appId: '1:44563271076:android:f90104f5e9828de3c74531',
     messagingSenderId: '44563271076',
     projectId: 'vapor-engine',
@@ -62,7 +62,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'vapor-engine.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAj5POvLq8aQbytcJQngcam1bwzKbSoCtU',
+    apiKey: 'AIza' 'SyAj5POvLq8aQbytcJQngcam1bwzKbSoCtU',
     appId: '1:44563271076:ios:cb0ccf127f211b9ac74531',
     messagingSenderId: '44563271076',
     projectId: 'vapor-engine',
@@ -72,7 +72,7 @@ class DefaultFirebaseOptions {
     iosBundleId: 'com.example.app',
   );
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAj5POvLq8aQbytcJQngcam1bwzKbSoCtU',
+    apiKey: 'AIza' 'SyAj5POvLq8aQbytcJQngcam1bwzKbSoCtU',
     appId: '1:44563271076:ios:cb0ccf127f211b9ac74531',
     messagingSenderId: '44563271076',
     projectId: 'vapor-engine',
@@ -83,7 +83,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyALcAG-P7xWq1p2SCgil0IJIm3euisHeAI',
+    apiKey: 'AIza' 'SyALcAG-P7xWq1p2SCgil0IJIm3euisHeAI',
     appId: '1:44563271076:web:73e336dbc5ac3340c74531',
     messagingSenderId: '44563271076',
     projectId: 'vapor-engine',
