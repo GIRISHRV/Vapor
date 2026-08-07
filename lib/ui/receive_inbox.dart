@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'components/vapor_components.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:cryptography/cryptography.dart';
@@ -160,7 +161,6 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
 
     try {
       _signaling = SignalingEngine(roomId: rawCode, peerId: 'receiver');
-      await _signaling!.initialize(isSender: false, remotePeerId: 'sender');
       _rtcEngine = RtcTransferEngine(signaling: _signaling!);
 
       PanicEngine.registerTeardown(() async {
@@ -190,9 +190,7 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
 
       _rtcEngine!.onChunkReceived = _handleIncomingData;
 
-      await _rtcEngine!.initialize();
-
-      // Listen for Offer
+      // Listen for Offer BEFORE initializing to avoid race condition
       _sdpSubscription = _signaling!.listenForRemoteSdp('sender').listen((
         sdpMap,
       ) {
@@ -208,6 +206,9 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
               _rtcEngine!.handleRemoteIce(iceMap);
             }
           });
+
+      await _rtcEngine!.initialize();
+      await _signaling!.initialize(isSender: false, remotePeerId: 'sender');
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -282,7 +283,8 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
               textAlign: TextAlign.center,
             ),
             actions: [
-              TextButton(
+              VaporButton(
+                isPrimary: false,
                 onPressed: () {
                   Navigator.pop(ctx);
                   _rtcEngine?.close();
@@ -292,7 +294,7 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
                 },
                 child: const Text('Reject', style: TextStyle(color: Colors.red)),
               ),
-              FilledButton(
+              VaporButton(
                 onPressed: () {
                   Navigator.pop(ctx);
                   if (mounted) {
@@ -467,14 +469,15 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
             ],
           ),
           actions: [
-            TextButton(
+            VaporButton(
+              isPrimary: false,
               onPressed: () {
                 Navigator.pop(context);
                 _rejectTransfer();
               },
               child: const Text('Reject', style: TextStyle(color: Colors.red)),
             ),
-            FilledButton(
+            VaporButton(
               onPressed: () {
                 Navigator.pop(context);
                 _acceptTransfer();
@@ -516,22 +519,16 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
   Widget build(BuildContext context) {
     final bool isConnected = _sessionKey != null;
 
-    return Scaffold(
-      body: Center(
+    return SafeArea(
+      child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (!isConnected)
-                Card(
-                  elevation: 4,
-                  shadowColor: Theme.of(
-                    context,
-                  ).colorScheme.shadow.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
+                VaporCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(32.0),
                     child: Column(
@@ -589,44 +586,11 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
                           ),
                         ],
                         const SizedBox(height: 32),
-                        TextField(
+                        VaporTextField(
                           controller: _codeController,
-                          decoration: InputDecoration(
-                            hintText: 'e.g. 842-193',
-                            hintStyle: TextStyle(
-                              fontSize: 16,
-                              letterSpacing: 1,
-                              fontWeight: FontWeight.normal,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant
-                                  .withValues(alpha: 0.5),
-                            ),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.qr_code_scanner),
-                              onPressed: () {
-                                setState(() {
-                                  _isScanning = !_isScanning;
-                                });
-                              },
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            filled: true,
-                            fillColor: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: 0.5),
-                          ),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 32,
-                            letterSpacing: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLength: 7,
+                          placeholder: 'e.g. 842-193',
                           keyboardType: TextInputType.number,
+                          inputFormatters: [MistCodeFormatter()],
                           onChanged: (v) {
                             setState(() {}); // Rebuild to update button state
                           },
@@ -635,37 +599,38 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
                         SizedBox(
                           width: double.infinity,
                           height: 56,
-                          child: FilledButton.icon(
+                          child: VaporButton(
                             onPressed:
                                 (_codeController.text.length >= 6 &&
                                     !_isConnecting &&
                                     _sessionKey == null)
                                 ? _connectToPeer
                                 : null,
-                            icon: _isConnecting
-                                ? Container(
-                                    width: 24,
-                                    height: 24,
-                                    padding: const EdgeInsets.all(2),
-                                    child: const CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 3,
-                                    ),
-                                  )
-                                : const Icon(Icons.bolt),
-                            label: Text(
-                              _isConnecting
-                                  ? 'Connecting...'
-                                  : 'Connect to Peer',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            style: FilledButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _isConnecting
+                                    ? Container(
+                                        width: 24,
+                                        height: 24,
+                                        padding: const EdgeInsets.all(2),
+                                        child: const CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 3,
+                                        ),
+                                      )
+                                    : const Icon(Icons.bolt),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _isConnecting
+                                      ? 'Connecting...'
+                                      : 'Connect to Peer',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -674,20 +639,8 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
                   ),
                 ),
               if (isConnected || _progress > 0) ...[
-                Card(
-                  elevation: 8,
-                  shadowColor: Theme.of(
-                    context,
-                  ).colorScheme.shadow.withValues(alpha: 0.3),
-                  color: Theme.of(context).colorScheme.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(32),
-                    side: BorderSide(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withValues(alpha: 0.5),
-                    ),
-                  ),
+                VaporCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: Column(
@@ -735,15 +688,15 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 24),
-                          FilledButton.icon(
+                          VaporButton(
                             onPressed: _resetState,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Receive Another File'),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.refresh),
+                                SizedBox(width: 8),
+                                Text('Receive Another File'),
+                              ],
                             ),
                           ),
                         ],
@@ -752,11 +705,8 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
                   ),
                 ),
               ] else if (_isConnecting) ...[
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                VaporCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(

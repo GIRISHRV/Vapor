@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'components/vapor_components.dart';
 
 class TutorialSlidesScreen extends StatefulWidget {
   const TutorialSlidesScreen({super.key});
@@ -63,7 +64,8 @@ class _TutorialSlidesScreenState extends State<TutorialSlidesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return VaporScaffold(
+      hideAppBar: true,
       body: SafeArea(
         child: Column(
           children: [

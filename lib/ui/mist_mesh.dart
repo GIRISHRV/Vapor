@@ -13,11 +13,12 @@ import 'dart:async';
 import 'package:path_provider/path_provider.dart';
 
 import '../storage/web_saver.dart';
-import '../transfer/swarm_manager.dart';
+import '../transfer/mist_manager.dart';
 import '../transfer/chunker.dart';
 import '../main.dart';
 import '../crypto/panic_engine.dart';
 import '../crypto/merkle_tree.dart';
+import 'components/vapor_components.dart';
 
 class ChatMessage {
   final String sender;
@@ -74,23 +75,23 @@ class IncomingFile {
   int get receivedSize => chunks.values.fold(0, (sum, c) => sum + c.length);
 }
 
-class SwarmMeshScreen extends ConsumerStatefulWidget {
-  const SwarmMeshScreen({super.key});
+class MistMeshScreen extends ConsumerStatefulWidget {
+  const MistMeshScreen({super.key});
 
   @override
-  ConsumerState<SwarmMeshScreen> createState() => _SwarmMeshScreenState();
+  ConsumerState<MistMeshScreen> createState() => _MistMeshScreenState();
 }
 
-class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
+class _MistMeshScreenState extends ConsumerState<MistMeshScreen> {
   final TextEditingController _roomController = TextEditingController();
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  bool _isInSwarm = false;
+  bool _isInMist = false;
   String? _roomId; // Hashed for network
-  String? _swarmKey; // Raw for UI display
+  String? _mistKey; // Raw for UI display
   late String _localPeerId;
-  SwarmManager? _swarmManager;
+  MistManager? _mistManager;
 
   final List<String> _connectedPeers = [];
   final List<ChatMessage> _messages = [];
@@ -114,7 +115,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
   void dispose() {
     _hudTimer?.cancel();
     _peerSubscription?.cancel();
-    _swarmManager?.dispose();
+    _mistManager?.dispose();
     _roomController.dispose();
     _chatController.dispose();
     _scrollController.dispose();
@@ -136,7 +137,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
     });
   }
 
-  void _joinSwarm() async {
+  void _joinMist() async {
     final inputKey = _roomController.text.trim();
     if (inputKey.isEmpty) return;
 
@@ -146,33 +147,33 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
 
     setState(() {
       _roomId = hashedRoomId;
-      _swarmKey = inputKey;
-      _isInSwarm = true;
+      _mistKey = inputKey;
+      _isInMist = true;
       _messages.add(
         ChatMessage(
           sender: 'System',
-          text: 'Joining swarm as $_localPeerId...',
+          text: 'Joining mist as $_localPeerId...',
           isSystem: true,
         ),
       );
     });
 
-    // Pass the hashed Room ID to Swarm Manager
-    _swarmManager = SwarmManager(
+    // Pass the hashed Room ID to Mist Manager
+    _mistManager = MistManager(
       roomId: hashedRoomId,
       localPeerId: _localPeerId,
     );
 
     PanicEngine.registerTeardown(() async {
-      _swarmManager?.dispose();
+      _mistManager?.dispose();
     });
 
     // Wire the GLOBAL data handler BEFORE joining
-    _swarmManager!.onDataReceived = (peerId, chunk) {
-      _handleSwarmData(peerId, chunk);
+    _mistManager!.onDataReceived = (peerId, chunk) {
+      _handleMistData(peerId, chunk);
     };
 
-    _peerSubscription = _swarmManager!.onPeerConnected.listen((peer) {
+    _peerSubscription = _mistManager!.onPeerConnected.listen((peer) {
       if (mounted) {
         setState(() {
           if (!_connectedPeers.contains(peer.peerId)) {
@@ -192,15 +193,15 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
 
     _hudTimer?.cancel();
     _hudTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && _isInSwarm) {
+      if (mounted && _isInMist) {
         setState(() {}); // Refresh Topology HUD
       }
     });
 
-    await _swarmManager!.joinSwarm();
+    await _mistManager!.joinMist();
   }
 
-  void _handleSwarmData(String peerId, Uint8List chunk) {
+  void _handleMistData(String peerId, Uint8List chunk) {
     if (chunk.isEmpty) return;
     final type = chunk[0];
     final payload = chunk.sublist(1);
@@ -278,12 +279,12 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
     }
   }
 
-  void _leaveSwarm() {
+  void _leaveMist() {
     _hudTimer?.cancel();
-    _swarmManager?.dispose();
-    _swarmManager = null;
+    _mistManager?.dispose();
+    _mistManager = null;
     setState(() {
-      _isInSwarm = false;
+      _isInMist = false;
       _roomId = null;
       _connectedPeers.clear();
       _messages.clear();
@@ -295,10 +296,10 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
 
   void _sendMessage() {
     final text = _chatController.text.trim();
-    if (text.isEmpty || _swarmManager == null) return;
+    if (text.isEmpty || _mistManager == null) return;
 
     final payload = Uint8List.fromList([0x04, ...utf8.encode(text)]);
-    _swarmManager!.broadcastMessage(payload);
+    _mistManager!.broadcastMessage(payload);
 
     setState(() {
       _messages.add(ChatMessage(sender: 'Me', text: text));
@@ -309,7 +310,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
 
   Future<void> _broadcastFile() async {
     if (!kIsWeb) AppState.ignoreNextResume = true;
-    FilePickerResult? result = await FilePicker.pickFiles(withData: true);
+    FilePickerResult? result = await FilePicker.pickFiles(withData: kIsWeb);
     if (result == null || result.files.isEmpty) return;
 
     final file = result.files.first;
@@ -356,7 +357,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
       'rootHash': base64Encode(tree.root),
     });
 
-    _swarmManager!.broadcastMessage(
+    _mistManager!.broadcastMessage(
       Uint8List.fromList([0x05, ...utf8.encode(meta)]),
     );
 
@@ -378,7 +379,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
     if (_hostedFiles.containsKey(fileId)) return;
 
     final req = jsonEncode({'id': fileId, 'requester': _localPeerId});
-    _swarmManager!.broadcastMessage(
+    _mistManager!.broadcastMessage(
       Uint8List.fromList([0x07, ...utf8.encode(req)]),
     );
   }
@@ -412,7 +413,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
       packet.setRange(3, 3 + headerBytes.length, headerBytes);
       packet.setRange(3 + headerBytes.length, packet.length, chunkData);
 
-      _swarmManager!.sendToPeer(peerId, packet);
+      _mistManager!.sendToPeer(peerId, packet);
       await Future.delayed(const Duration(milliseconds: 5));
       i++;
     }
@@ -457,7 +458,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
     // Valid chunk, save it!
     incoming.chunks[index] = chunkData;
 
-    // GOSSIP FORWARD: Rebroadcast the validated chunk to the rest of the Swarm (Tree Routing)
+    // GOSSIP FORWARD: Rebroadcast the validated chunk to the rest of the Mist (Tree Routing)
     final headerStr = jsonEncode({
       'fileId': fileId,
       'index': index,
@@ -470,8 +471,8 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
     packet.setRange(3, 3 + headerBytes.length, headerBytes);
     packet.setRange(3 + headerBytes.length, packet.length, chunkData);
 
-    // Broadcast to everyone (SwarmManager automatically sends only to connected peers)
-    _swarmManager!.broadcastMessage(packet, excludePeerId: senderPeerId);
+    // Broadcast to everyone (MistManager automatically sends only to connected peers)
+    _mistManager!.broadcastMessage(packet, excludePeerId: senderPeerId);
 
     if (incoming.chunks.length % 10 == 0 ||
         incoming.chunks.length == incoming.totalChunks) {
@@ -492,7 +493,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
       String? path;
       if (!kIsWeb) {
         final dir = await getTemporaryDirectory();
-        final tempFile = File('${dir.path}/vapor_swarm_${incoming.id}');
+        final tempFile = File('${dir.path}/vapor_mist_${incoming.id}');
         await tempFile.writeAsBytes(fileBytes);
         path = tempFile.path;
 
@@ -578,84 +579,8 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _isInSwarm
-          ? AppBar(
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.hub, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Swarm: ${_swarmKey ?? ""}',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy, size: 16),
-                    tooltip: 'Copy Swarm Key',
-                    onPressed: () {
-                      if (_swarmKey != null) {
-                        Clipboard.setData(ClipboardData(text: _swarmKey!));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Swarm Key copied to clipboard'),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.share, size: 16),
-                    tooltip: 'Share via WhatsApp/Discord',
-                    onPressed: () {
-                      if (_swarmKey != null) {
-                        // Generate an Ephemeral Time-To-Live Link (Expires in 15 mins)
-                        final expiry = DateTime.now()
-                            .add(const Duration(minutes: 15))
-                            .millisecondsSinceEpoch;
-
-                        // Cryptographically sign the expiration time using HMAC-SHA256
-                        // so peers can verify the timestamp hasn't been tampered with.
-                        final hmac = Hmac(
-                          sha256,
-                          utf8.encode('vapor_ephemeral_salt_$_roomId'),
-                        );
-                        final sig = hmac
-                            .convert(utf8.encode('$_swarmKey:$expiry'))
-                            .toString()
-                            .substring(0, 16);
-
-                        final link =
-                            'https://vapor-engine.web.app/swarm/$_swarmKey?expires=$expiry&sig=$sig';
-                        if (!kIsWeb) AppState.ignoreNextResume = true;
-                        // ignore: deprecated_member_use
-                        Share.share(
-                          'Join my secure Vapor swarm! (Link self-destructs in 15m)\n\n$link',
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Center(
-                    child: Text(
-                      'Peers: ${_connectedPeers.length}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.exit_to_app),
-                  tooltip: 'Leave Swarm',
-                  onPressed: _leaveSwarm,
-                ),
-              ],
-            )
-          : null,
-      body: _isInSwarm ? _buildSwarmActive() : _buildJoinSetup(),
+    return SafeArea(
+      child: _isInMist ? _buildMistActive() : _buildJoinSetup(),
     );
   }
 
@@ -663,14 +588,8 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
-        child: Card(
-          elevation: 4,
-          shadowColor: Theme.of(
-            context,
-          ).colorScheme.shadow.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
+        child: VaporCard(
+          padding: EdgeInsets.zero,
           child: Padding(
             padding: const EdgeInsets.all(32.0),
             child: Column(
@@ -683,24 +602,30 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'N-to-N Swarm Mesh',
+                  'Group Share',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
                   height: 50,
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text(
-                      'Create New Swarm',
-                      style: TextStyle(fontSize: 18),
-                    ),
+                  child: VaporButton(
                     onPressed: () {
                       _roomController.text =
-                          'swarm-${Random().nextInt(90000) + 10000}';
-                      _joinSwarm();
+                          '${Random().nextInt(900) + 100}-${Random().nextInt(900) + 100}-${Random().nextInt(900) + 100}';
+                      _joinMist();
                     },
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add),
+                        SizedBox(width: 8),
+                        Text(
+                          'Create Group',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -715,35 +640,38 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                TextField(
+                VaporTextField(
                   controller: _roomController,
-                  decoration: const InputDecoration(
-                    labelText: 'Enter Swarm ID',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.group_work),
-                  ),
+                  placeholder: 'Enter Group ID',
+                  prefix: const Icon(Icons.group_work),
+                  inputFormatters: [MistCodeFormatter()],
+                  keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   height: 50,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.login),
-                    label: const Text(
-                      'Join Existing Swarm',
-                      style: TextStyle(fontSize: 18),
-                    ),
+                  child: VaporButton(
+                    isPrimary: false,
                     onPressed: () {
                       if (_roomController.text.trim().isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Please enter a Swarm ID'),
+                            content: Text('Please enter a Group ID'),
                           ),
                         );
                         return;
                       }
-                      _joinSwarm();
+                      _joinMist();
                     },
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.login),
+                        SizedBox(width: 8),
+                        Text('Join Group'),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -754,9 +682,67 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
     );
   }
 
-  Widget _buildSwarmActive() {
+  Widget _buildMistActive() {
     return Column(
       children: [
+        VaporCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.hub, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Mist: ${_mistKey ?? ""}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: Icon(kIsWeb ? Icons.copy : Icons.share, size: 16),
+                tooltip: kIsWeb ? 'Copy Link' : 'Share',
+                onPressed: () {
+                  if (_mistKey != null) {
+                    final expiry = DateTime.now()
+                        .add(const Duration(minutes: 15))
+                        .millisecondsSinceEpoch;
+                    final hmac = Hmac(
+                      sha256,
+                      utf8.encode('vapor_ephemeral_salt_$_roomId'),
+                    );
+                    final sig = hmac
+                        .convert(utf8.encode('$_mistKey:$expiry'))
+                        .toString()
+                        .substring(0, 16);
+                    final link =
+                        'https://vapor-engine.web.app/mist/$_mistKey?expires=$expiry&sig=$sig';
+                    final shareText = 'Mist ID: $_mistKey\n\nJoin my secure Vapor mist! (Link self-destructs in 15m)\n\n$link';
+                    
+                    if (kIsWeb) {
+                      Clipboard.setData(ClipboardData(text: shareText));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Link copied to clipboard!')),
+                      );
+                    } else {
+                      AppState.ignoreNextResume = true;
+                      // ignore: deprecated_member_use
+                      Share.share(shareText);
+                    }
+                  }
+                },
+              ),
+              const Spacer(),
+              Text(
+                'Peers: ${_connectedPeers.length}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.exit_to_app),
+                tooltip: 'Leave Mist',
+                color: Colors.redAccent,
+                onPressed: _leaveMist,
+              ),
+            ],
+          ),
+        ),
         _buildTopologyHUD(),
         Expanded(
           child: ListView.builder(
@@ -774,19 +760,12 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
           child: Row(
             children: [
               Expanded(
-                child: TextField(
+                child: VaporTextField(
                   controller: _chatController,
-                  decoration: const InputDecoration(
-                    hintText: 'Broadcast a message...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(24)),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                  ),
-                  onSubmitted: (_) => _sendMessage(),
+                  placeholder: 'Broadcast a message...',
+                  onChanged: (val) {
+                     // Add simple enter detection or rely on send button
+                  },
                 ),
               ),
               const SizedBox(width: 8),
@@ -808,7 +787,7 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
   }
 
   Widget _buildTopologyHUD() {
-    if (_swarmManager == null || _swarmManager!.peers.isEmpty) {
+    if (_mistManager == null || _mistManager!.peers.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -817,20 +796,13 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: _swarmManager!.peers.length,
+        itemCount: _mistManager!.peers.length,
         itemBuilder: (context, index) {
-          final peerId = _swarmManager!.peers.keys.elementAt(index);
-          final peer = _swarmManager!.peers[peerId]!;
+          final peerId = _mistManager!.peers.keys.elementAt(index);
+          final peer = _mistManager!.peers[peerId]!;
 
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: peer.isConnected ? Colors.green : Colors.grey,
-                width: 2,
-              ),
-            ),
+          return VaporCard(
+            padding: EdgeInsets.zero,
             child: Container(
               padding: const EdgeInsets.all(12),
               width: 140,
@@ -1004,16 +976,16 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
                     ),
                   ],
                 ),
-                OutlinedButton.icon(
+                VaporButton(
+                  isPrimary: false,
                   onPressed: () => _saveFile(_hostedFiles[fileId]!),
-                  icon: const Icon(Icons.save, size: 16),
-                  label: const Text('Save'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 0,
-                    ),
-                    minimumSize: const Size(0, 32),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.save, size: 16),
+                      SizedBox(width: 8),
+                      Text('Save'),
+                    ],
                   ),
                 ),
               ],
@@ -1036,11 +1008,17 @@ class _SwarmMeshScreenState extends ConsumerState<SwarmMeshScreen> {
           else
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: VaporButton(
                 onPressed: () =>
                     _requestFile(fileId, msg.fileName!, msg.fileSize!),
-                icon: const Icon(Icons.download, size: 18),
-                label: const Text('Download'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.download, size: 18),
+                    SizedBox(width: 8),
+                    Text('Download'),
+                  ],
+                ),
               ),
             ),
         ],

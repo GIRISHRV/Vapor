@@ -3,8 +3,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:go_router/go_router.dart';
+
 import '../crypto/panic_engine.dart';
+import 'components/vapor_components.dart';
 
 class LockScreenOverlay extends StatefulWidget {
   final VoidCallback? onUnlock;
@@ -174,10 +175,8 @@ class _LockScreenOverlayState extends State<LockScreenOverlay> {
       } else if (inputHash == _duressPin) {
         // DURESS TRIGGERED!
         if (mounted) {
-          Navigator.of(context).pop();
-          // Silently trigger wipe and redirect to dashboard
+          // Silently trigger wipe and redirect to dashboard via PanicEngine
           PanicEngine.triggerPanicWipe(context);
-          context.go('/');
         }
       } else {
         _showError('Incorrect PIN');
@@ -215,14 +214,14 @@ class _LockScreenOverlayState extends State<LockScreenOverlay> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        body: const Center(child: CircularProgressIndicator()),
+      return const VaporScaffold(
+        hideAppBar: true,
+        body: Center(child: VaporProgress()),
       );
     }
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+    return VaporScaffold(
+      hideAppBar: true,
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

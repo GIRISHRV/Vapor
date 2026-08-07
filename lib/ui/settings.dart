@@ -1,41 +1,64 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../crypto/panic_engine.dart';
-import 'platform_provider.dart';
+import 'theme_provider.dart';
+import 'components/vapor_components.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
-  static const _platformOptions = <TargetPlatform?, _PlatformChoice>{
-    null: _PlatformChoice('Auto (Native)', Icons.auto_awesome),
-    TargetPlatform.android: _PlatformChoice(
-      'Android (Material)',
-      Icons.android,
-    ),
-    TargetPlatform.iOS: _PlatformChoice('iOS (Cupertino)', Icons.phone_iphone),
-    TargetPlatform.macOS: _PlatformChoice('macOS (Apple)', Icons.desktop_mac),
-    TargetPlatform.windows: _PlatformChoice(
-      'Windows (Fluent)',
-      Icons.desktop_windows,
-    ),
-    TargetPlatform.linux: _PlatformChoice('Linux', Icons.computer),
-  };
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _isOnline = true;
+  StreamSubscription? _connSub;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentPlatform = ref.watch(platformOverrideProvider);
-    final nativePlatform = defaultTargetPlatform;
+  void initState() {
+    super.initState();
+    _checkInitialConnectivity();
+    _connSub = Connectivity().onConnectivityChanged.listen((results) {
+      if (!mounted) return;
+      setState(() {
+        _isOnline = !results.contains(ConnectivityResult.none);
+      });
+    });
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
+  Future<void> _checkInitialConnectivity() async {
+    final results = await Connectivity().checkConnectivity();
+    if (!mounted) return;
+    setState(() {
+      _isOnline = !results.contains(ConnectivityResult.none);
+    });
+  }
+
+  @override
+  void dispose() {
+    _connSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentStyle = ref.watch(designStyleProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return VaporScaffold(
+      title: 'Settings',
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back_ios_new, size: 20, color: isDark ? Colors.white : Colors.black),
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          context.pop();
+        },
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
@@ -45,71 +68,38 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
             child: Text(
               'Appearance',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
                 fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.2,
               ),
             ),
           ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.palette,
-                        color: Theme.of(context).colorScheme.primary,
+          VaporCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: AppDesignStyle.values.map((style) {
+                return Column(
+                  children: [
+                    VaporListTile(
+                      title: Text(style.label, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      leading: Icon(
+                        style == AppDesignStyle.material ? Icons.android :
+                        style == AppDesignStyle.cupertino ? Icons.apple : Icons.window,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'UI Style',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Native: ${_platformLabel(nativePlatform)}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _platformOptions.entries.map((entry) {
-                      final isSelected = currentPlatform == entry.key;
-                      return ChoiceChip(
-                        avatar: Icon(entry.value.icon, size: 18),
-                        label: Text(entry.value.label),
-                        selected: isSelected,
-                        onSelected: (_) {
-                          ref
-                              .read(platformOverrideProvider.notifier)
-                              .setPlatform(entry.key);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
+                      trailing: currentStyle == style 
+                          ? Icon(Icons.check_circle, color: isDark ? Colors.white : Colors.black)
+                          : const SizedBox.shrink(),
+                      onTap: () {
+                        ref.read(designStyleProvider.notifier).setStyle(style);
+                      },
+                    ),
+                    if (style != AppDesignStyle.values.last)
+                      Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : Colors.black12),
+                  ],
+                );
+              }).toList(),
             ),
           ),
           const SizedBox(height: 24),
@@ -119,26 +109,27 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
             child: Text(
               'Security',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
                 fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.2,
               ),
             ),
           ),
-          Card(
+          VaporCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
-                const ListTile(
-                  title: Text('Zero-Trust Architecture'),
-                  subtitle: Text(
-                    'All connections are ephemeral. No data is ever stored.',
-                  ),
-                  leading: Icon(Icons.security),
+                VaporListTile(
+                  title: const Text('Zero-Trust Architecture'),
+                  subtitle: const Text('All connections are ephemeral. No data is ever stored.', style: TextStyle(fontSize: 12)),
+                  leading: const Icon(Icons.security),
                 ),
-                const Divider(height: 0),
-                ListTile(
+                Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : Colors.black12),
+                VaporListTile(
                   title: const Text('Change App PINs'),
-                  subtitle: const Text('Reset your Real PIN and Duress PIN.'),
+                  subtitle: const Text('Reset your Real PIN and Duress PIN.', style: TextStyle(fontSize: 12)),
                   leading: const Icon(Icons.pin),
                   onTap: () async {
                     final prefs = await SharedPreferences.getInstance();
@@ -146,53 +137,25 @@ class SettingsScreen extends ConsumerWidget {
                     await prefs.remove('vapor_duress_pin');
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('PINs reset. Please set them again.'),
-                        ),
+                        const SnackBar(content: Text('PINs reset. Please set them again.')),
                       );
-                      context.go('/');
+                      context.go('/lock');
                     }
                   },
                 ),
-                const Divider(height: 0),
-                ListTile(
-                  title: const Text(
-                    'Emergency Panic Wipe',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: const Text(
-                    'Instantly shred all active keys, wipe temp files, and close connections.',
-                  ),
-                  leading: const Icon(Icons.warning, color: Colors.red),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Initiate Panic Wipe?'),
-                        content: const Text(
-                          'This will instantly destroy all active session keys and wipe memory buffers. This cannot be undone.',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('CANCEL'),
-                          ),
-                          FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.red,
-                            ),
-                            onPressed: () {
-                              Navigator.pop(context);
-                              PanicEngine.triggerPanicWipe(context);
-                            },
-                            child: const Text('WIPE'),
-                          ),
-                        ],
-                      ),
-                    );
+                Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : Colors.black12),
+                VaporListTile(
+                  title: const Text('Trigger Panic Wipe', style: TextStyle(color: Colors.red)),
+                  subtitle: const Text('Instantly destroy all keys and locks.', style: TextStyle(fontSize: 12)),
+                  leading: const Icon(Icons.delete_forever, color: Colors.red),
+                  onTap: () async {
+                    await PanicEngine.triggerPanicWipe(context);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('PANIC WIPE EXECUTED. Restarting app.')),
+                      );
+                      context.go('/tutorial');
+                    }
                   },
                 ),
               ],
@@ -205,47 +168,36 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
             child: Text(
               'Network Diagnostics',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
                 fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.2,
               ),
             ),
           ),
-          Card(
+          VaporCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
-                ListTile(
+                VaporListTile(
                   title: const Text('Signaling Servers'),
-                  subtitle: const Text(
-                    'mDNS (Local) • Firebase (Cloud Fallback)',
-                  ),
+                  subtitle: const Text('mDNS (Local) • Firebase (Cloud Fallback)', style: TextStyle(fontSize: 12)),
                   leading: const Icon(Icons.router, color: Colors.blue),
-                  trailing: const Text(
-                    'CONFIGURED',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  trailing: Text(_isOnline ? 'ONLINE' : 'OFFLINE', style: TextStyle(color: _isOnline ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 10)),
                 ),
-                const Divider(height: 0),
-                ListTile(
+                Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : Colors.black12),
+                VaporListTile(
                   title: const Text('NAT Traversal (STUN)'),
-                  subtitle: const Text('stun.l.google.com:19302'),
+                  subtitle: const Text('stun.l.google.com:19302', style: TextStyle(fontSize: 12)),
                   leading: const Icon(Icons.public, color: Colors.blue),
-                  trailing: const Text(
-                    'CONFIGURED',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  trailing: Text(_isOnline ? 'ONLINE' : 'OFFLINE', style: TextStyle(color: _isOnline ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 10)),
                 ),
-                const Divider(height: 0),
-                ListTile(
-                  title: const Text('P2P Protocol'),
-                  subtitle: const Text('WebRTC (RTCDataChannel) multiplexed'),
-                  leading: const Icon(Icons.compare_arrows, color: Colors.blue),
+                Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : Colors.black12),
+                const VaporListTile(
+                  title: Text('P2P Protocol'),
+                  subtitle: Text('WebRTC (RTCDataChannel) multiplexed', style: TextStyle(fontSize: 12)),
+                  leading: Icon(Icons.compare_arrows, color: Colors.blue),
                 ),
               ],
             ),
@@ -257,16 +209,19 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
             child: Text(
               'About',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
                 fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.2,
               ),
             ),
           ),
-          Card(
+          VaporCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
-                ListTile(
+                VaporListTile(
                   title: const Text('Replay Welcome Tutorial'),
                   leading: const Icon(Icons.school),
                   trailing: const Icon(Icons.chevron_right),
@@ -274,43 +229,21 @@ class SettingsScreen extends ConsumerWidget {
                     context.push('/tutorial');
                   },
                 ),
-                const Divider(height: 0),
-                const ListTile(
+                Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : Colors.black12),
+                const VaporListTile(
                   title: Text('Vapor v1.0.5'),
                   subtitle: Text(
                     'Zero-Trust Amnesiac P2P File Transfer Engine\nNo accounts. No history. No trace.',
+                    style: TextStyle(fontSize: 12),
                   ),
                   leading: Icon(Icons.info_outline),
-                  isThreeLine: true,
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 48),
         ],
       ),
     );
   }
-
-  String _platformLabel(TargetPlatform p) {
-    switch (p) {
-      case TargetPlatform.android:
-        return 'Android';
-      case TargetPlatform.iOS:
-        return 'iOS';
-      case TargetPlatform.macOS:
-        return 'macOS';
-      case TargetPlatform.windows:
-        return 'Windows';
-      case TargetPlatform.linux:
-        return 'Linux';
-      case TargetPlatform.fuchsia:
-        return 'Fuchsia';
-    }
-  }
-}
-
-class _PlatformChoice {
-  final String label;
-  final IconData icon;
-  const _PlatformChoice(this.label, this.icon);
 }

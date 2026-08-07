@@ -7,11 +7,11 @@ import 'ui/shell.dart';
 import 'ui/send_workspace.dart';
 import 'ui/receive_inbox.dart';
 import 'ui/dashboard.dart';
-import 'ui/swarm_mesh.dart';
+import 'ui/mist_mesh.dart';
 import 'ui/lock_screen.dart';
 import 'ui/tutorial_slides.dart';
 import 'ui/settings.dart';
-import 'ui/platform_provider.dart';
+import 'ui/theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -32,7 +32,10 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    runApp(const ProviderScope(child: MyApp()));
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenTutorial = prefs.getBool('has_seen_tutorial') ?? false;
+
+    runApp(ProviderScope(child: MyApp(hasSeenTutorial: hasSeenTutorial)));
   } catch (e, stackTrace) {
     runApp(
       MaterialApp(
@@ -53,24 +56,73 @@ void main() async {
 }
 
 class MyApp extends ConsumerStatefulWidget {
-  const MyApp({super.key});
+  final bool hasSeenTutorial;
+
+  const MyApp({super.key, required this.hasSeenTutorial});
 
   @override
   ConsumerState<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
-  bool _isLocked = true;
-  bool _isLoading = true;
+  bool _isLocked = true; // start locked if we are on a platform that requires it
+  late final GoRouter _router;
+  late final AppLinks _appLinks;
   StreamSubscription<Uri>? _appLinksSub;
-  late AppLinks _appLinks;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkInitialLock();
     _initAppLinks();
+
+    _router = GoRouter(
+      initialLocation: widget.hasSeenTutorial ? '/' : '/tutorial',
+      routes: [
+        GoRoute(
+          path: '/tutorial',
+          builder: (context, state) => const TutorialSlidesScreen(),
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => const SettingsScreen(),
+        ),
+        GoRoute(
+          path: '/lock',
+          builder: (context, state) =>
+              LockScreenOverlay(onUnlock: () => setState(() => _isLocked = false)),
+        ),
+        ShellRoute(
+          builder: (context, state, child) => AdaptiveShell(child: child),
+          routes: [
+            GoRoute(
+              path: '/',
+              pageBuilder: (context, state) => const NoTransitionPage(child: DashboardScreen()),
+            ),
+            GoRoute(
+              path: '/send',
+              pageBuilder: (context, state) => const NoTransitionPage(child: SendWorkspaceScreen()),
+            ),
+            GoRoute(
+              path: '/receive',
+              pageBuilder: (context, state) {
+                final extra = state.extra as Map<String, dynamic>?;
+                return NoTransitionPage(
+                  child: ReceiveInboxScreen(
+                    initialCode: extra?['code']?.toString(),
+                    initialExtra: extra,
+                  ),
+                );
+              },
+            ),
+            GoRoute(
+              path: '/mist',
+              pageBuilder: (context, state) => const NoTransitionPage(child: MistMeshScreen()),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   void _initAppLinks() {
@@ -107,70 +159,18 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  late GoRouter _router;
-
-  Future<void> _checkInitialLock() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasSeenTutorial = prefs.getBool('has_seen_tutorial') ?? false;
-
-    _router = GoRouter(
-      initialLocation: hasSeenTutorial ? '/' : '/tutorial',
-      routes: [
-        GoRoute(
-          path: '/tutorial',
-          builder: (context, state) => const TutorialSlidesScreen(),
-        ),
-        GoRoute(
-          path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
-        ),
-        GoRoute(
-          path: '/lock',
-          builder: (context, state) =>
-              LockScreenOverlay(onUnlock: () => context.go('/')),
-        ),
-        ShellRoute(
-          builder: (context, state, child) => AdaptiveShell(child: child),
-          routes: [
-            GoRoute(
-              path: '/',
-              builder: (context, state) => const DashboardScreen(),
-            ),
-            GoRoute(
-              path: '/send',
-              builder: (context, state) => const SendWorkspaceScreen(),
-            ),
-            GoRoute(
-              path: '/receive',
-              builder: (context, state) {
-                final extra = state.extra as Map<String, dynamic>?;
-                return ReceiveInboxScreen(
-                  initialCode: extra?['code']?.toString(),
-                  initialExtra: extra,
-                );
-              },
-            ),
-            GoRoute(
-              path: '/swarm',
-              builder: (context, state) => const SwarmMeshScreen(),
-            ),
-          ],
-        ),
-      ],
-    );
-
-    setState(() => _isLoading = false);
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
-      );
-    }
 
-    final currentPlatform = ref.watch(platformOverrideProvider);
+    final designStyle = ref.watch(designStyleProvider);
+    TargetPlatform? currentPlatform;
+    if (designStyle == AppDesignStyle.fluent) {
+      currentPlatform = TargetPlatform.windows;
+    } else if (designStyle == AppDesignStyle.cupertino) {
+      currentPlatform = TargetPlatform.macOS;
+    } else {
+      currentPlatform = TargetPlatform.android;
+    }
 
     return MaterialApp.router(
       title: 'Vapor Engine',

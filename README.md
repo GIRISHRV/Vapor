@@ -199,7 +199,7 @@ Project Link: [https://github.com/girishrv/Vapor](https://github.com/girishrv/Va
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [license-shield]: https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge
-[license-url]: https://github.com/girishrv/Vapor/blob/main/LICENSE.txt
+[license-url]: https://github.com/girishrv/Vapor/blob/master/LICENSE.txt
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/girishrv05
 

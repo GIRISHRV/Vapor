@@ -1,13 +1,12 @@
 import 'dart:typed_data';
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'dart:html' as html;
 
 void saveFileOnWeb(String filename, Uint8List bytes) {
-  final blob = web.Blob([bytes.toJS].toJS);
-  final url = web.URL.createObjectURL(blob);
-  web.HTMLAnchorElement()
-    ..href = url
-    ..download = filename
+  final blob = html.Blob([bytes]);
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.AnchorElement(href: url)
+    ..setAttribute('download', filename)
     ..click();
-  web.URL.revokeObjectURL(url);
+  html.Url.revokeObjectUrl(url);
 }

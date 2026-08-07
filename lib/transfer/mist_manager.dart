@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:firebase_database/firebase_database.dart';
 
-class SwarmPeer {
+class MistPeer {
   final String peerId;
   RTCPeerConnection? peerConnection;
   final List<RTCDataChannel> dataChannels = [];
@@ -15,7 +15,7 @@ class SwarmPeer {
   final List<RTCIceCandidate> _iceCandidateBuffer = [];
   bool _remoteDescriptionSet = false;
 
-  SwarmPeer(this.peerId);
+  MistPeer(this.peerId);
 
   Future<void> addIceCandidate(RTCIceCandidate candidate) async {
     if (_remoteDescriptionSet && peerConnection != null) {
@@ -72,29 +72,29 @@ Map<String, dynamic> _safeMapParse(dynamic value) {
   }
 }
 
-class SwarmManager {
+class MistManager {
   final String roomId;
   final String localPeerId;
   final FirebaseDatabase _db = FirebaseDatabase.instance;
-  final Map<String, SwarmPeer> _peers = {};
+  final Map<String, MistPeer> _peers = {};
 
-  final StreamController<SwarmPeer> _onPeerConnected =
+  final StreamController<MistPeer> _onPeerConnected =
       StreamController.broadcast();
-  Stream<SwarmPeer> get onPeerConnected => _onPeerConnected.stream;
+  Stream<MistPeer> get onPeerConnected => _onPeerConnected.stream;
 
   // Expose peer list for UI
-  Map<String, SwarmPeer> get peers => Map.unmodifiable(_peers);
+  Map<String, MistPeer> get peers => Map.unmodifiable(_peers);
 
   // Global chunk handler — set by the UI before joining
   Function(String peerId, Uint8List chunk)? onDataReceived;
 
   final List<StreamSubscription> _subscriptions = [];
 
-  SwarmManager({required this.roomId, required this.localPeerId});
+  MistManager({required this.roomId, required this.localPeerId});
 
-  DatabaseReference get _roomRef => _db.ref('swarms/$roomId');
+  DatabaseReference get _roomRef => _db.ref('mists/$roomId');
 
-  Future<void> joinSwarm() async {
+  Future<void> joinMist() async {
     // Announce presence
     await _roomRef.child('presence/$localPeerId').set({
       'joined': ServerValue.timestamp,
@@ -127,7 +127,12 @@ class SwarmManager {
         final sdp = map['sdp'] as String?;
         if (from == null || type == null || sdp == null) return;
 
-        final peer = _peers[from];
+        var peer = _peers[from];
+        if (peer == null) {
+          final isInitiator = localPeerId.compareTo(from) < 0;
+          await _initiatePeerConnection(from, isInitiator);
+          peer = _peers[from];
+        }
         if (peer == null || peer.peerConnection == null) return;
 
         final desc = RTCSessionDescription(sdp, type);
@@ -163,7 +168,12 @@ class SwarmManager {
         final from = map['from'] as String?;
         if (from == null) return;
 
-        final peer = _peers[from];
+        var peer = _peers[from];
+        if (peer == null) {
+          final isInitiator = localPeerId.compareTo(from) < 0;
+          await _initiatePeerConnection(from, isInitiator);
+          peer = _peers[from];
+        }
         if (peer == null) return;
 
         final candidate = RTCIceCandidate(
@@ -183,7 +193,9 @@ class SwarmManager {
     String remotePeerId,
     bool isInitiator,
   ) async {
-    final peer = SwarmPeer(remotePeerId);
+    if (_peers.containsKey(remotePeerId)) return;
+    
+    final peer = MistPeer(remotePeerId);
     _peers[remotePeerId] = peer;
 
     final config = <String, dynamic>{
@@ -228,7 +240,7 @@ class SwarmManager {
       // Create multiplexed data channels BEFORE creating offer
       for (int i = 0; i < 4; i++) {
         final dc = await peer.peerConnection!.createDataChannel(
-          'swarm_$i',
+          'mist_$i',
           RTCDataChannelInit()..ordered = true,
         );
         peer.dataChannels.add(dc);
@@ -247,7 +259,7 @@ class SwarmManager {
     }
   }
 
-  void _wireDataChannel(SwarmPeer peer, RTCDataChannel channel) {
+  void _wireDataChannel(MistPeer peer, RTCDataChannel channel) {
     channel.onDataChannelState = (state) {
       if (state == RTCDataChannelState.RTCDataChannelOpen) {
         if (!peer.isConnected) {
@@ -295,7 +307,7 @@ class SwarmManager {
     };
   }
 
-  void _sendPing(SwarmPeer peer, RTCDataChannel channel) {
+  void _sendPing(MistPeer peer, RTCDataChannel channel) {
     if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
       final bytes = Uint8List(9);
       bytes[0] = 0x07;

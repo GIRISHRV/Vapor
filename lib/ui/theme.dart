@@ -16,6 +16,17 @@ class AppTheme {
       colorSchemeSeed: primary,
       brightness: brightness,
       platform: platform,
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+        indicatorColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        elevation: 0,
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: Colors.transparent,
+        indicatorColor: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+        useIndicator: true,
+      ),
     );
 
     // Apply Platform-Specific Design Adaptations

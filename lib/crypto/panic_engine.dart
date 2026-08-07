@@ -40,7 +40,7 @@ class PanicEngine {
     }
     _activeKeyMaterial.clear();
 
-    // 2. Execute all registered teardown callbacks (WebRTC, Signaling, Swarm)
+    // 2. Execute all registered teardown callbacks (WebRTC, Signaling, Mist)
     for (var teardown in _teardownCallbacks) {
       try {
         await teardown();

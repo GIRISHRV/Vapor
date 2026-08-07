@@ -18,6 +18,7 @@ import '../transfer/chunker.dart';
 import '../crypto/aes_gcm.dart';
 import '../crypto/ecdh.dart';
 import '../crypto/inspector.dart';
+import 'components/vapor_components.dart';
 import 'animations/radar_pulse.dart';
 import 'animations/success_check.dart';
 import '../main.dart';
@@ -88,7 +89,8 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
     final rand = Random();
     final p1 = rand.nextInt(900) + 100;
     final p2 = rand.nextInt(900) + 100;
-    return '$p1-$p2';
+    final p3 = rand.nextInt(900) + 100;
+    return '$p1-$p2-$p3';
   }
 
   Future<void> _pickAndGenerateCode() async {
@@ -158,20 +160,9 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
 
       try {
         _signaling = SignalingEngine(roomId: normalizedCode, peerId: 'sender');
-      } catch (e) {
-        throw Exception('SignalingEngine Constructor failed: $e');
-      }
-
-      try {
-        await _signaling!.initialize(isSender: true, remotePeerId: 'receiver');
-      } catch (e) {
-        throw Exception('SignalingEngine initialize failed: $e');
-      }
-
-      try {
         _rtcEngine = RtcTransferEngine(signaling: _signaling!);
       } catch (e) {
-        throw Exception('RtcTransferEngine Constructor failed: $e');
+        throw Exception('Engine Constructor failed: $e');
       }
 
       PanicEngine.registerTeardown(() async {
@@ -293,19 +284,7 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
         }
       };
 
-      try {
-        await _rtcEngine!.initialize();
-      } catch (e) {
-        throw Exception('rtcEngine.initialize failed: $e');
-      }
-
-      try {
-        await _rtcEngine!.createOffer();
-      } catch (e) {
-        throw Exception('rtcEngine.createOffer failed: $e');
-      }
-
-      // Listen for Answer
+      // Listen for Answer BEFORE initializing
       _sdpSubscription = _signaling!.listenForRemoteSdp('receiver').listen((
         sdpMap,
       ) {
@@ -321,6 +300,24 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
               _rtcEngine!.handleRemoteIce(iceMap);
             }
           });
+
+      try {
+        await _rtcEngine!.initialize();
+      } catch (e) {
+        throw Exception('rtcEngine.initialize failed: $e');
+      }
+
+      try {
+        await _signaling!.initialize(isSender: true, remotePeerId: 'receiver');
+      } catch (e) {
+        throw Exception('SignalingEngine initialize failed: $e');
+      }
+
+      try {
+        await _rtcEngine!.createOffer();
+      } catch (e) {
+        throw Exception('rtcEngine.createOffer failed: $e');
+      }
 
       if (mounted) {
         setState(() {
@@ -468,9 +465,8 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Send Workspace')),
-      body: Center(
+    return SafeArea(
+      child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 500),
           child: AnimatedSwitcher(
@@ -536,12 +532,8 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
           await _pickAndGenerateCode();
         }
       },
-      child: Card(
-        elevation: 4,
-        shadowColor: Theme.of(
-          context,
-        ).colorScheme.shadow.withValues(alpha: 0.1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: VaporCard(
+        padding: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(32.0),
           child: Column(
@@ -565,11 +557,8 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
               ),
               const SizedBox(height: 32),
               if (_isGenerating)
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                VaporCard(
+                  padding: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -588,15 +577,21 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   height: 56,
-                  child: FilledButton.icon(
+                  child: VaporButton(
                     onPressed: _pickAndGenerateCode,
-                    icon: const Icon(Icons.file_upload),
-                    label: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12.0),
-                      child: Text(
-                        'Pick File & Generate Code',
-                        style: TextStyle(fontSize: 16),
-                      ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.file_upload),
+                        SizedBox(width: 8),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Text(
+                            'Pick File & Generate Code',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -624,20 +619,8 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          Card(
-            elevation: 8,
-            shadowColor: Theme.of(
-              context,
-            ).colorScheme.shadow.withValues(alpha: 0.3),
-            color: Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(32),
-              side: BorderSide(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outlineVariant.withValues(alpha: 0.5),
-              ),
-            ),
+          VaporCard(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
@@ -688,7 +671,8 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
                           ),
                     ),
                     const SizedBox(height: 16),
-                    TextButton.icon(
+                    VaporButton(
+                      isPrimary: false,
                       onPressed: () async {
                         final uriString = _inviteLink!;
                         if (kIsWeb) {
@@ -708,9 +692,15 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
                           Share.shareUri(Uri.parse(uriString));
                         }
                       },
-                      icon: Icon(kIsWeb ? Icons.copy : Icons.share),
-                      label: Text(
-                        kIsWeb ? 'Copy Invite Link' : 'Share Invite Link',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(kIsWeb ? Icons.copy : Icons.share),
+                          const SizedBox(width: 8),
+                          Text(
+                            kIsWeb ? 'Copy Invite Link' : 'Share Invite Link',
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -745,15 +735,15 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    FilledButton.icon(
+                    VaporButton(
                       onPressed: _resetState,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Send Another File'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.refresh),
+                          SizedBox(width: 8),
+                          Text('Send Another File'),
+                        ],
                       ),
                     ),
                   ] else ...[
