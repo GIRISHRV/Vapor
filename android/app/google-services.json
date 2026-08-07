@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "44563271076",
+    "firebase_url": "https://vapor-engine-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "vapor-engine",
+    "storage_bucket": "vapor-engine.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:44563271076:android:f90104f5e9828de3c74531",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB50ussmvofyUaC1RMxfEnctqFw24NT-pA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
