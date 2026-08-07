@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/ui/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({
@@ -13,13 +15,15 @@ void main() {
   });
 
   testWidgets('SettingsScreen layout and interactions', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: SettingsScreen(),
+    await tester.pumpWidget(const ProviderScope(
+      child: MaterialApp(
+        home: SettingsScreen(),
+      ),
     ));
 
     expect(find.text('Settings'), findsOneWidget);
     expect(find.text('Security'), findsOneWidget);
-    expect(find.text('Change Real PIN'), findsOneWidget);
-    expect(find.text('Change Duress PIN'), findsOneWidget);
+    expect(find.text('Change App PINs'), findsOneWidget);
+    expect(find.text('Emergency Panic Wipe'), findsOneWidget);
   });
 }
