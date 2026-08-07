@@ -30,35 +30,29 @@ jobs:
           channel: 'stable'
           
       - name: Install dependencies
-        working-directory: apps/app
         run: flutter pub get
         
       - name: Run Linter
-        working-directory: apps/app
         run: flutter analyze
 
       - name: Run Tests
-        working-directory: apps/app
         run: flutter test
         
       - name: Build Web
-        working-directory: apps/app
         run: flutter build web --release
         
       - name: Build Android APK
-        working-directory: apps/app
         run: flutter build apk --release
         
       - name: Build Windows
-        working-directory: apps/app
         run: flutter build windows --release
         
       - name: Zip Windows Build
-        working-directory: apps/app/build/windows/x64/runner/Release
+        working-directory: build/windows/x64/runner/Release
         run: Compress-Archive -Path * -DestinationPath ../../../../../vapor-windows.zip
         
       - name: Zip Web Build
-        working-directory: apps/app/build/web
+        working-directory: build/web
         run: Compress-Archive -Path * -DestinationPath ../../../vapor-web.zip
         
       - name: Generate Changelog
@@ -74,7 +68,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            apps/app/build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-release.apk
             vapor-windows.zip
             vapor-web.zip
           body_path: changelog.txt
@@ -88,4 +82,3 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_VAPOR_ENGINE }}'
           projectId: vapor-engine
           channelId: live
-          entryPoint: apps/app
