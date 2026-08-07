@@ -155,4 +155,29 @@ class RtcTransferEngine {
     await _peerConnection?.close();
     await signaling.purgeRoom(); // Amnesiac purge
   }
+
+  Future<String> getConnectionQuality() async {
+    if (_peerConnection == null) return "Unknown";
+    try {
+      final stats = await _peerConnection!.getStats();
+      for (var report in stats) {
+        if (report.type == 'candidate-pair' && report.values['state'] == 'succeeded') {
+          final localCandidateId = report.values['localCandidateId'];
+          for (var localReport in stats) {
+            if (localReport.id == localCandidateId) {
+              final type = localReport.values['candidateType'] ?? localReport.values['networkType'] ?? '';
+              if (type.toString().contains('relay')) {
+                return "☁️ Relayed (Cloud)";
+              } else if (type.toString().contains('srflx') || type.toString().contains('prflx')) {
+                return "🌐 Direct (Internet)";
+              } else if (type.toString().contains('host')) {
+                return "⚡ Direct (LAN)";
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return "⚡ Direct (Unknown)";
+  }
 }

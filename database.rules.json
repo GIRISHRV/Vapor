@@ -2,11 +2,11 @@
   "rules": {
     "rooms": {
       "$roomId": {
-        // Ephemeral rooms are readable and writable by any peer with the Room ID
+       
         ".read": true,
         ".write": true,
 
-        // Validate structure: rooms can ONLY contain offer, answer, callerCandidates, calleeCandidates
+        
         "$other": {
           ".validate": "newData.hasChildren() && ($other === 'offer' || $other === 'answer' || $other === 'callerCandidates' || $other === 'calleeCandidates')"
         },

@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:crypto/crypto.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../signaling/firebase.dart';
 import '../transfer/rtc_channel.dart';
@@ -178,12 +179,13 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
         await _signaling?.purgeRoom();
       });
 
-      _rtcEngine!.onStateChanged = (state) {
+      _rtcEngine!.onStateChanged = (state) async {
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+          final quality = await _rtcEngine!.getConnectionQuality();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Peer connected! Securing channel...'),
+              SnackBar(
+                content: Text('Peer connected via $quality! Securing channel...'),
               ),
             );
           }
@@ -207,15 +209,46 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
             remotePub,
             roomId,
           );
+          
+          final localPub = await _localKeyPair!.extractPublicKey();
+          final localBytes = Uint8List.fromList(await serializePublicKey(localPub));
+          final sas = _computeSAS(localBytes, payload);
+
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Verify Connection (Zero-Trust)'),
                 content: Text(
-                  'Secure Channel Established! Sending metadata...',
+                  'To ensure no one is eavesdropping, verify this code with the receiver:\n\n$sas',
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2),
+                  textAlign: TextAlign.center,
                 ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _rtcEngine?.close();
+                      if (mounted) Navigator.pop(context);
+                    },
+                    child: const Text('Reject', style: TextStyle(color: Colors.red)),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Secure Channel Established! Sending metadata...'),
+                        ),
+                      );
+                      _sendMetadata();
+                    },
+                    child: const Text('Looks Good'),
+                  ),
+                ],
               ),
             );
-            _sendMetadata();
           }
         } else if (type == 0x04) {
           // Peer Accepted
@@ -754,5 +787,18 @@ class _SendWorkspaceScreenState extends ConsumerState<SendWorkspaceScreen> {
         ],
       ),
     );
+  }
+  String _computeSAS(Uint8List a, Uint8List b) {
+    final list = [a, b];
+    list.sort((x, y) {
+      for (int i = 0; i < x.length && i < y.length; i++) {
+        if (x[i] != y[i]) return x[i].compareTo(y[i]);
+      }
+      return x.length.compareTo(y.length);
+    });
+    final combined = Uint8List.fromList([...list[0], ...list[1]]);
+    final hash = sha256.convert(combined).bytes;
+    final sas = ((hash[0] << 8) | hash[1]) % 10000;
+    return sas.toString().padLeft(4, '0');
   }
 }

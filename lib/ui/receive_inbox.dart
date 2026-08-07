@@ -9,6 +9,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+// Removed file_picker
+import 'package:crypto/crypto.dart';
 import '../storage/web_saver.dart';
 import '../signaling/firebase.dart';
 import '../transfer/rtc_channel.dart';
@@ -104,6 +106,20 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
     super.dispose();
   }
 
+  String _computeSAS(List<int> a, List<int> b) {
+    final list = [a, b];
+    list.sort((x, y) {
+      for (int i = 0; i < x.length && i < y.length; i++) {
+        if (x[i] != y[i]) return x[i].compareTo(y[i]);
+      }
+      return x.length.compareTo(y.length);
+    });
+    final combined = [...list[0], ...list[1]];
+    final hash = sha256.convert(combined).bytes;
+    final sas = ((hash[0] << 8) | hash[1]) % 10000;
+    return sas.toString().padLeft(4, '0');
+  }
+
   void _resetState() {
     _sdpSubscription?.cancel();
     _iceSubscription?.cancel();
@@ -155,11 +171,12 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
 
       _localKeyPair = await generateECDHKeyPair();
 
-      _rtcEngine!.onStateChanged = (state) {
+      _rtcEngine!.onStateChanged = (state) async {
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+          final quality = await _rtcEngine!.getConnectionQuality();
           if (mounted) {
             setState(() {
-              _statusMessage = 'Connected! Securing channel...';
+              _statusMessage = 'Connected ($quality)! Securing...';
             });
           }
         }
@@ -248,10 +265,45 @@ class _ReceiveInboxScreenState extends ConsumerState<ReceiveInboxScreen> {
       final remotePub = deserializePublicKey(payload);
       final roomId = _codeController.text.replaceAll(RegExp(r'[^0-9]'), '');
       _sessionKey = await deriveSharedSecret(_localKeyPair!, remotePub, roomId);
+      
+      final localPub = await _localKeyPair!.extractPublicKey();
+      final localBytes = await serializePublicKey(localPub);
+      final sas = _computeSAS(localBytes, payload);
+
       if (mounted) {
-        setState(() {
-          _statusMessage = 'Secure Channel Established! Waiting for file...';
-        });
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Verify Connection (Zero-Trust)'),
+            content: Text(
+              'To ensure no one is eavesdropping, verify this code with the sender:\n\n$sas',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2),
+              textAlign: TextAlign.center,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _rtcEngine?.close();
+                  if (mounted) {
+                    setState(() { _isConnecting = false; _statusMessage = 'Connection rejected.'; });
+                  }
+                },
+                child: const Text('Reject', style: TextStyle(color: Colors.red)),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  if (mounted) {
+                    setState(() { _statusMessage = 'Secure Channel Established. Waiting...'; });
+                  }
+                },
+                child: const Text('Looks Good'),
+              ),
+            ],
+          ),
+        );
       }
     } else if (type == 0x02) {
       // Metadata
