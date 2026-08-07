@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/ui/lock_screen.dart'; // Adjust path if needed
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 
 // Helper to match the PBKDF2 structure roughly, or just mock it since the lock screen
@@ -14,9 +15,11 @@ void main() {
   });
 
   testWidgets('LockScreenOverlay shows Setup Mode on first run', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: LockScreenOverlay(),
+    await tester.pumpWidget(const ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: LockScreenOverlay(),
+        ),
       ),
     ));
 
@@ -28,9 +31,11 @@ void main() {
   });
 
   testWidgets('LockScreenOverlay setup flow', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: LockScreenOverlay(),
+    await tester.pumpWidget(const ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: LockScreenOverlay(),
+        ),
       ),
     ));
     await tester.pumpAndSettle();

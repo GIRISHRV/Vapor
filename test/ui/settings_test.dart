@@ -24,6 +24,6 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
     expect(find.text('Security'), findsOneWidget);
     expect(find.text('Change App PINs'), findsOneWidget);
-    expect(find.text('Emergency Panic Wipe'), findsOneWidget);
+    expect(find.text('Trigger Panic Wipe'), findsOneWidget);
   });
 }
