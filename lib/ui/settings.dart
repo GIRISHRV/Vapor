@@ -231,7 +231,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : Colors.black12),
                 const VaporListTile(
-                  title: Text('Vapor v1.0.5'),
+                  title: Text('Vapor v1.1.0'),
                   subtitle: Text(
                     'Zero-Trust Amnesiac P2P File Transfer Engine\nNo accounts. No history. No trace.',
                     style: TextStyle(fontSize: 12),
